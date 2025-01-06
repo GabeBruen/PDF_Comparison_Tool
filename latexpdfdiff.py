@@ -1,30 +1,37 @@
 # latexpdfdiff
 
-import subprocess
 import os
+import fitz  # PyMuPDF
 from PIL import Image, ImageChops, ImageStat
 import tkinter as tk
 from tkinter import filedialog
 
 # This turns the PDFs to images.
-def pdf_to_image(pdf_path, output_folder, output_name):
+def pdf_to_image(pdf_path, output_path):
     try:
-        # Ensure the paths are correctly formatted with double quotes
-        pdf_path = f'"{os.path.abspath(pdf_path)}"'
-        output_path = f'"{os.path.join(output_folder, output_name)}.png"'
-        # Converts to a PNG
-        result = subprocess.run(['convert', pdf_path, output_path], check=True, capture_output=True, text=True)
-        print(result.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"Error converting PDF to image: {e.stderr}")
+        # Open the PDF file
+        pdf_document = fitz.open(pdf_path)
+        # Get the first page
+        page = pdf_document.load_page(0)
+        # Render the page to an image
+        pix = page.get_pixmap()
+        # Save the image
+        pix.save(output_path)
+        print(f"Converted {pdf_path} to {output_path}")
+    except Exception as e:
+        print(f"Error converting PDF to image: {e}")
 
 # This loads the newly created images.
 def load_images(image_path1, image_path2):
-    # Loads first image
-    image1 = Image.open(image_path1)  # Pillow
-    # Loads second image
-    image2 = Image.open(image_path2)  # Pillow
-    return image1, image2
+    try:
+        image1 = Image.open(image_path1)  # Pillow
+        image2 = Image.open(image_path2)  # Pillow
+        return image1, image2
+    except FileNotFoundError as e:
+        print(f"File not found: {e.filename}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
 
 # This calculates the differences between the 2 images.
 def calculate_difference(image1, image2):
@@ -32,6 +39,7 @@ def calculate_difference(image1, image2):
     stat = ImageStat.Stat(diff)  # Pillow
     diff_percentage = sum(stat.mean) / (len(stat.mean) * 255) * 100
     return diff, diff_percentage
+
 
 # This is for the saved combined image at the end.
 def save_combined_image(image1, image2, diff, output_path):
@@ -41,11 +49,6 @@ def save_combined_image(image1, image2, diff, output_path):
     combined.paste(diff, (image1.width * 2, 0))
     combined.save(output_path)
 
-def ask_for_folder():
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
-    folder_path = filedialog.askdirectory()  # Open the file explorer to select a folder
-    return folder_path
 
 # Main script
 root = tk.Tk()
@@ -62,16 +65,17 @@ if not test_pdf or not good_pdf:
     print("Next time, add your PDFs.")
     exit()
 
-# Prompt to ask for a folder path
-print("Where do you want to put your newly created images?")
-selected_folder = ask_for_folder()
+# Define the output paths for the images
+test_image_path = os.path.join(os.path.dirname(test_pdf), 'test.png')
+good_image_path = os.path.join(os.path.dirname(good_pdf), 'good.png')
+combined_image_path = os.path.join(os.path.dirname(test_pdf), 'combined.png')
 
 # This converts the PDFs to images. (Calls first function.)
-pdf_to_image(test_pdf, selected_folder, 'test')
-pdf_to_image(good_pdf, selected_folder, 'good')
+pdf_to_image(test_pdf, test_image_path)
+pdf_to_image(good_pdf, good_image_path)
 
 # This loads the images. (Calls second function.)
-image1, image2 = load_images(os.path.join(selected_folder, 'test.png'), os.path.join(selected_folder, 'good.png'))
+image1, image2 = load_images(test_image_path, good_image_path)
 
 # This will calculate the difference between the 2 images. (Calls third function.)
 diff, diff_percentage = calculate_difference(image1, image2)
@@ -80,4 +84,4 @@ diff, diff_percentage = calculate_difference(image1, image2)
 print(f"Difference percentage: {diff_percentage:.2f}%")
 
 # This saves the final image. (Calls fourth function.)
-save_combined_image(image1, image2, diff, os.path.join(selected_folder, 'combined.png'))
+save_combined_image(image1, image2, diff, combined_image_path)
