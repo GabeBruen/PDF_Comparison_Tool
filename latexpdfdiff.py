@@ -1,5 +1,11 @@
 # latexpdfdiff
 
+"""
+AI code was used as a base to help me get started, but
+I added on to the code to make it more user friendly, both for
+the user and anyone looking at this code.
+"""
+
 import os
 import fitz  # PyMuPDF
 from PIL import Image, ImageChops, ImageStat
