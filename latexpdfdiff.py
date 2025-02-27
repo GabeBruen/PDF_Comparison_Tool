@@ -7,7 +7,7 @@ the user and anyone looking at this code. -GVB
 """
 
 import os
-import fitz  # PyMuPDF
+import fitz  # PyMuPDF (Using a version higher than 1.25.1 will break the program.)
 from PIL import Image, ImageChops, ImageStat
 import tkinter as tk
 from tkinter import filedialog
