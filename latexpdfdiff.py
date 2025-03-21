@@ -17,13 +17,16 @@ the user and anyone looking at this code. -GVB
 """
 
 """
-3/10/25 Except for command line, everything has been tested.
+3/21/25 Everything has been tested.
 """
 
 # When using the command line,
 # you can specify the folder containing the PDFs to compare using the --folder argument,
 # like this:
 # python script_name.py --folder /path/to/pdf_folder
+
+# Python must be in your PATH.
+# Program must be run in admin mode.
 
 
 # This turns the PDFs to images.
@@ -150,12 +153,27 @@ def main(folder_path=None):
     progress_bar.close()
 
 
+# This code does stuff in the terminal.
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PDF Comparator")
-    parser.add_argument("--folder", help="Folder containing the PDFs to compare")
-    args = parser.parse_args()
+    # This line checks if the script is being run directly (not imported as a module).
+    # If true, the following code block will execute.
 
+    # Create an argument parser to handle command-line arguments.
+    parser = argparse.ArgumentParser(description="PDF Comparator")
+    # 'description' specifies what the script does, displayed when using `--help`.
+
+    # Add the '--folder' argument to specify the folder path containing the PDFs.
+    parser.add_argument("--folder", help="Folder containing the PDFs to compare")
+    # 'help' provides information about this argument when using `--help`.
+
+    # Parse the command-line arguments provided by the user.
+    args = parser.parse_args()
+    # This generates an object with the arguments, accessible via 'args'.
+
+    # Check if the '--folder' argument was provided.
     if args.folder:
+        # If the folder path is provided, call the 'main' function with the folder path.
         main(folder_path=args.folder)
     else:
+        # If no folder is provided, call 'main' without arguments, triggering GUI mode.
         main()
