@@ -5,7 +5,7 @@ import os
 import sys
 import glob  # Importing glob for GlobStar Notation
 import argparse  # Command line functions.
-import fitz  # PyMuPDF (version lower than 1.26 recommended)
+import fitz  # PyMuPDF (Works on latest version.)
 from PIL import Image, ImageChops, ImageStat
 import tkinter as tk
 from tkinter import filedialog
@@ -18,7 +18,8 @@ the user and anyone looking at this code. -GVB
 """
 
 """
-4/7/25 AI has added features, but they haven't been tested.
+4/7/25 Progress bar works fine on command line, but looks messy in GUI.
+Program works with the latest version of PyMuPDF.
 Working title: PDF Comparison Tool
 """
 
@@ -54,36 +55,28 @@ error_messages = []
 
 
 # This turns the PDFs to images.
-def pdf_to_image(pdf_path, output_path, progress_bar=None):
+def pdf_to_image(pdf_path, output_path):
     global error_messages
     try:
         pdf_document = fitz.open(pdf_path)
         page = pdf_document.load_page(0)  # Get the first page
         pix = page.get_pixmap()
         pix.save(output_path)
-        if progress_bar:
-            progress_bar.update(1)
     except Exception as e:
         error_messages.append(f"Error converting PDF '{pdf_path}' to image: {e}")
-        if progress_bar:
-            progress_bar.update(1)
 
 
 # This loads the newly created images.
-def load_images(image_path1, image_path2, progress_bar=None):
+def load_images(image_path1, image_path2):
     global error_messages
     try:
         image1 = Image.open(image_path1)
         image2 = Image.open(image_path2)
-        if progress_bar:
-            progress_bar.update(1)
         return image1, image2
     except FileNotFoundError as e:
         error_messages.append(f"File not found: {e.filename}")
     except Exception as e:
         error_messages.append(f"Unexpected error loading images '{image_path1}' and '{image_path2}': {e}")
-    if progress_bar:
-        progress_bar.update(1)
     return None, None
 
 
@@ -118,19 +111,16 @@ def save_combined_image(image1, image2, diff, output_path):
 def main(good_pattern=None, new_pattern=None):
     global error_messages
 
-    # If patterns are not provided, open a GUI folder selector and use default glob patterns.
     if not good_pattern or not new_pattern:
         root = tk.Tk()
-        root.withdraw()  # Hide main window
+        root.withdraw()  # Hide the main window
         folder_path = filedialog.askdirectory(title="Select the folder containing PDFs")
         if not folder_path:
             sys.stderr.write("No folder selected. Exiting.\n")
             sys.exit(1)
-        # Default patterns assume filenames end with _good.pdf and _new.pdf.
         good_pattern = os.path.join(folder_path, "*_good.pdf")
         new_pattern = os.path.join(folder_path, "*_new.pdf")
 
-    # Gather files based on the provided glob patterns.
     good_pdfs = sorted(glob.glob(good_pattern))
     new_pdfs = sorted(glob.glob(new_pattern))
 
@@ -138,55 +128,52 @@ def main(good_pattern=None, new_pattern=None):
         sys.stderr.write("Error: The number of good and new PDFs do not match.\n")
         sys.exit(1)
 
-    # Match files by comparing identifiers in the file names.
     good_ids = [os.path.basename(f).replace("_good.pdf", "") for f in good_pdfs]
     new_ids = [os.path.basename(f).replace("_new.pdf", "") for f in new_pdfs]
     if sorted(good_ids) != sorted(new_ids):
         sys.stderr.write("Error: Mismatch between good and new PDF filenames.\n")
         sys.exit(1)
 
-    # Create the output folder (in the same directory as the good PDFs).
     output_folder = os.path.join(os.path.dirname(good_pdfs[0]) if good_pdfs else ".", "output_images")
     os.makedirs(output_folder, exist_ok=True)
 
-    # Set up a progress bar.
-    # For each PDF pair, we update once for each conversion (2), once for image loading, once after diff calc,
-    # and once after saving the combined image (total 5 updates per pair).
-    total_steps = len(good_pdfs) * 5
-    progress_bar = tqdm(total=total_steps, desc="Processing", ncols=80)
+    # Set up a single progress bar for the entire process
+    total_steps = len(good_pdfs) * 5  # Each file pair has 5 operations
+    with tqdm(total=total_steps, desc="Processing PDFs", ncols=80, leave=True) as progress_bar:
+        for good_pdf, new_pdf in zip(good_pdfs, new_pdfs):
+            new_image_path = os.path.join(output_folder, f"new_{os.path.basename(new_pdf)}.png")
+            good_image_path = os.path.join(output_folder, f"good_{os.path.basename(good_pdf)}.png")
+            combined_image_path = os.path.join(output_folder, f"combined_{os.path.basename(good_pdf)}.png")
 
-    # Process each matching pair.
-    for good_pdf, new_pdf in zip(good_pdfs, new_pdfs):
-        # Define output image paths.
-        base_name_good = os.path.basename(good_pdf)
-        base_name_new = os.path.basename(new_pdf)
-        new_image_path = os.path.join(output_folder, f"new_{base_name_new}.png")
-        good_image_path = os.path.join(output_folder, f"good_{base_name_good}.png")
-        combined_image_path = os.path.join(output_folder, f"combined_{base_name_good}.png")
+            # Convert PDFs to images
+            pdf_to_image(new_pdf, new_image_path)
+            progress_bar.update(1)
+            pdf_to_image(good_pdf, good_image_path)
+            progress_bar.update(1)
 
-        # Convert PDFs to images.
-        pdf_to_image(new_pdf, new_image_path, progress_bar)
-        pdf_to_image(good_pdf, good_image_path, progress_bar)
+            # Load images
+            image1, image2 = load_images(new_image_path, good_image_path)
+            progress_bar.update(1)
 
-        # Load images.
-        image1, image2 = load_images(new_image_path, good_image_path, progress_bar)
-        if image1 is None or image2 is None:
-            continue  # Skip this pair in case of errors.
+            if image1 is None or image2 is None:
+                continue
 
-        # Calculate the difference between images.
-        diff, diff_percentage = calculate_difference(image1, image2)
-        progress_bar.update(1)  # Update after diff calculation
+            # Calculate the difference
+            diff, diff_percentage = calculate_difference(image1, image2)
+            progress_bar.update(1)
 
-        # Save the combined comparison image.
-        save_combined_image(image1, image2, diff, combined_image_path)
-        progress_bar.update(1)  # Update after saving combined image
+            # **Display the difference percentage below the progress bar**
+            tqdm.write(f"Difference percentage for {os.path.basename(new_pdf)}: {diff_percentage:.2f}%")
 
-    progress_bar.close()
+            # Save the combined comparison image
+            save_combined_image(image1, image2, diff, combined_image_path)
+            progress_bar.update(1)
 
+    # Display errors at the end (if any)
     if error_messages:
-        sys.stderr.write("\nErrors occurred during processing:\n")
+        tqdm.write("\nErrors occurred during processing:")
         for msg in error_messages:
-            sys.stderr.write(msg + "\n")
+            tqdm.write(msg)
         sys.exit(1)
     else:
         sys.exit(0)
