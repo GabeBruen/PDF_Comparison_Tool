@@ -25,7 +25,6 @@ Install the required packages using pip:
 ```bash
 pip install pymupdf Pillow tqdm
 
-
 Usage
 Command-Line Mode
 You can run the tool by providing two positional glob patterns:
