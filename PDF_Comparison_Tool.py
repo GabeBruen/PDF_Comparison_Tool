@@ -18,9 +18,9 @@ the user and anyone looking at this code. -GVB
 """
 
 """
-4/7/25 Progress bar works fine on command line, but looks messy in GUI.
+5/2/25 Progress bar works fine on command line, but looks messy in GUI.
 Program works with the latest version of PyMuPDF.
-Working title: PDF Comparison Tool
+PDF Comparison Tool v 1.0
 """
 
 """
