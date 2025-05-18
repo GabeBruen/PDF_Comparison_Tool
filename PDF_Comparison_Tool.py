@@ -1,10 +1,7 @@
-#!/usr/bin/env python3
-
 # import statements
 import os
 import sys
 import glob  # Importing glob for GlobStar Notation
-import argparse  # Command line functions.
 import fitz  # PyMuPDF (Works on latest version.)
 from PIL import Image, ImageChops, ImageStat
 import tkinter as tk
@@ -18,28 +15,11 @@ the user and anyone looking at this code. -GVB
 """
 
 """
-5/2/25 Progress bar works fine on command line, but looks messy in GUI.
-Program works with the latest version of PyMuPDF.
-PDF Comparison Tool v 1.0
-"""
-
-"""
-This comment was made by AI -GVB
-PDF Diff – A tool for comparing PDFs
-
-This script converts the first page of each PDF into an image, adds a red border, computes the difference,
-and creates a combined image for side-by-side comparison.
-
-Usage:
-  Command-line mode (preferred):
-    python pdfdiff.py "<glob_pattern_for_good>" "<glob_pattern_for_new>"
-  Example:
-    python pdfdiff.py "*_good.pdf" "*_new.pdf"
-
-  If no patterns are provided, a folder selection GUI will appear (using tkinter), and by default it will
-  look for files ending with _good.pdf and _new.pdf.
-
-Ensure that Python is in your PATH and run the script with the desired patterns.
+5/17/25 Program more precise with decimals.
+Output images look better.
+Progress bar still looks messy in GUI.
+Command line portion not tested.
+PDF Comparison Tool v 1.0.1
 """
 
 # When using the command line,
@@ -48,13 +28,12 @@ Ensure that Python is in your PATH and run the script with the desired patterns.
 # python script_name.py --folder /path/to/pdf_folder
 
 # Python must be in your PATH.
-# Program must be run in admin mode.
 
 # Global list to accumulate error messages.
 error_messages = []
 
 
-# This turns the PDFs to images.
+# Function to convert PDFs to images.
 def pdf_to_image(pdf_path, output_path):
     global error_messages
     try:
@@ -66,7 +45,7 @@ def pdf_to_image(pdf_path, output_path):
         error_messages.append(f"Error converting PDF '{pdf_path}' to image: {e}")
 
 
-# This loads the newly created images.
+# Function to load images for comparison.
 def load_images(image_path1, image_path2):
     global error_messages
     try:
@@ -80,22 +59,24 @@ def load_images(image_path1, image_path2):
     return None, None
 
 
-# This adds a red border to the image.
+# Function to add a red border to images.
 def add_border(image, border_size=10, color='red'):
     img_with_border = Image.new('RGB', (image.width + 2 * border_size, image.height + 2 * border_size), color)
     img_with_border.paste(image, (border_size, border_size))
     return img_with_border
 
 
-# This calculates the differences between the 2 images.
+# Function to calculate differences between two images.
 def calculate_difference(image1, image2):
     diff = ImageChops.difference(image1, image2)
     stat = ImageStat.Stat(diff)
-    diff_percentage = (sum(stat.mean) / (len(stat.mean) * 255)) * 100  # percentage change
-    return diff, diff_percentage
+    diff_percentage = (sum(stat.mean) / (len(stat.mean) * 255)) * 100  # Percentage change
+
+    # Increased decimal precision for better differentiation.
+    return diff, round(diff_percentage, 5)
 
 
-# This is for the saved combined image at the end.
+# Function to save the combined comparison image.
 def save_combined_image(image1, image2, diff, output_path):
     image1_with_border = add_border(image1)
     image2_with_border = add_border(image2)
@@ -108,66 +89,99 @@ def save_combined_image(image1, image2, diff, output_path):
     combined.save(output_path)
 
 
-def main(good_pattern=None, new_pattern=None):
+# Improved function to extract IDs dynamically based on glob patterns.
+def extract_ids(files, pattern):
+    extracted_ids = []
+    pattern_base = os.path.basename(pattern)
+
+    for f in files:
+        f_basename = os.path.basename(f)
+        for part in pattern_base.split('*'):
+            if part:
+                f_basename = f_basename.replace(part, '')
+        extracted_ids.append(f_basename)
+
+    return extracted_ids
+
+
+# Main processing function.
+def process_pdf_pairs(good_pdfs, new_pdfs, output_folder, progress_bar):
+    for good_pdf, new_pdf in zip(good_pdfs, new_pdfs):
+        base_name = os.path.basename(good_pdf).split('.')[0]  # Standardized naming
+        new_image_path = os.path.join(output_folder, f"{base_name}_new.png")
+        good_image_path = os.path.join(output_folder, f"{base_name}_good.png")
+        combined_image_path = os.path.join(output_folder, f"{base_name}_combined.png")
+
+        # Convert PDFs to images.
+        pdf_to_image(new_pdf, new_image_path)
+        progress_bar.update(0.2)
+        pdf_to_image(good_pdf, good_image_path)
+        progress_bar.update(0.2)
+
+        # Load images.
+        image1, image2 = load_images(new_image_path, good_image_path)
+        progress_bar.update(0.2)
+
+        if image1 is None or image2 is None:
+            continue
+
+        # Calculate the difference.
+        diff, diff_percentage = calculate_difference(image1, image2)
+        progress_bar.update(0.2)
+
+        tqdm.write(f"Difference percentage for {base_name}: {diff_percentage:.5f}%")  # More decimal places.
+
+        # Save the combined comparison image.
+        save_combined_image(image1, image2, diff, combined_image_path)
+        progress_bar.update(0.2)
+
+
+# Main Function
+def main():
     global error_messages
 
+    # Initialize Tkinter and hide the root window
+    root = tk.Tk()
+    root.withdraw()  # Prevents the full GUI window from appearing
+
+    # Ask user to select the folder containing PDFs
+    folder_path = filedialog.askdirectory(title="Select Folder Containing PDFs")
+
+    if not folder_path:
+        sys.stderr.write("Error: No folder selected. Exiting.\n")
+        sys.exit(1)
+
+    # Ask user for glob patterns dynamically
+    print("Enter the glob pattern for the known good PDFs (e.g., '*_good.pdf'):")
+    good_pattern = input("> ").strip()
+
+    print("Enter the glob pattern for the new PDFs to compare (e.g., '*_new.pdf'):")
+    new_pattern = input("> ").strip()
+
     if not good_pattern or not new_pattern:
-        root = tk.Tk()
-        root.withdraw()  # Hide the main window
-        folder_path = filedialog.askdirectory(title="Select the folder containing PDFs")
-        if not folder_path:
-            sys.stderr.write("No folder selected. Exiting.\n")
-            sys.exit(1)
-        good_pattern = os.path.join(folder_path, "*_good.pdf")
-        new_pattern = os.path.join(folder_path, "*_new.pdf")
+        sys.stderr.write("Error: Patterns cannot be empty.\n")
+        sys.exit(1)
+
+    good_pattern = os.path.join(folder_path, good_pattern)
+    new_pattern = os.path.join(folder_path, new_pattern)
 
     good_pdfs = sorted(glob.glob(good_pattern))
     new_pdfs = sorted(glob.glob(new_pattern))
 
-    if len(good_pdfs) != len(new_pdfs):
-        sys.stderr.write("Error: The number of good and new PDFs do not match.\n")
-        sys.exit(1)
+    # Ensure glob matching works dynamically for different naming conventions
+    good_ids = extract_ids(good_pdfs, good_pattern)
+    new_ids = extract_ids(new_pdfs, new_pattern)
 
-    good_ids = [os.path.basename(f).replace("_good.pdf", "") for f in good_pdfs]
-    new_ids = [os.path.basename(f).replace("_new.pdf", "") for f in new_pdfs]
     if sorted(good_ids) != sorted(new_ids):
-        sys.stderr.write("Error: Mismatch between good and new PDF filenames.\n")
+        sys.stderr.write("Error: Mismatch between extracted file IDs.\n")
         sys.exit(1)
 
-    output_folder = os.path.join(os.path.dirname(good_pdfs[0]) if good_pdfs else ".", "output_images")
+    output_folder = os.path.join(folder_path, "output_images")
     os.makedirs(output_folder, exist_ok=True)
 
-    # Set up a single progress bar for the entire process
-    total_steps = len(good_pdfs) * 5  # Each file pair has 5 operations
+    total_steps = len(good_pdfs)  # Adjusted progress calculation
     with tqdm(total=total_steps, desc="Processing PDFs", ncols=80, leave=True) as progress_bar:
-        for good_pdf, new_pdf in zip(good_pdfs, new_pdfs):
-            new_image_path = os.path.join(output_folder, f"new_{os.path.basename(new_pdf)}.png")
-            good_image_path = os.path.join(output_folder, f"good_{os.path.basename(good_pdf)}.png")
-            combined_image_path = os.path.join(output_folder, f"combined_{os.path.basename(good_pdf)}.png")
-
-            # Convert PDFs to images
-            pdf_to_image(new_pdf, new_image_path)
-            progress_bar.update(1)
-            pdf_to_image(good_pdf, good_image_path)
-            progress_bar.update(1)
-
-            # Load images
-            image1, image2 = load_images(new_image_path, good_image_path)
-            progress_bar.update(1)
-
-            if image1 is None or image2 is None:
-                continue
-
-            # Calculate the difference
-            diff, diff_percentage = calculate_difference(image1, image2)
-            progress_bar.update(1)
-
-            # **Display the difference percentage below the progress bar**
-            tqdm.write(f"Difference percentage for {os.path.basename(new_pdf)}: {diff_percentage:.2f}%")
-
-            # Save the combined comparison image
-            save_combined_image(image1, image2, diff, combined_image_path)
-            progress_bar.update(1)
+        process_pdf_pairs(good_pdfs, new_pdfs, output_folder, progress_bar)
 
     # Display errors at the end (if any)
     if error_messages:
@@ -179,34 +193,6 @@ def main(good_pattern=None, new_pattern=None):
         sys.exit(0)
 
 
+# Entry point for running the script without command-line arguments
 if __name__ == "__main__":
-    # This block ensures that the script runs only when it is executed directly,
-    # and not when it is imported as a module in another Python file.
-
-    parser = argparse.ArgumentParser(description="PDF Comparator Tool")
-    # Creates an argument parser to handle command-line arguments.
-    # 'description' explains what the script does, and appears in the help message.
-
-    parser.add_argument(
-        "good_pattern",
-        nargs="?",
-        help='Glob pattern for the known good PDFs (e.g., "*_good.pdf")'
-    )
-    # Adds the first positional argument "good_pattern".
-    # This argument specifies a pattern (GlobStar notation) to locate the known good PDF files.
-
-    parser.add_argument(
-        "new_pattern",
-        nargs="?",
-        help='Glob pattern for the new PDFs to compare (e.g., "*_new.pdf")'
-    )
-    # Adds the second positional argument "new_pattern".
-    # This argument specifies a pattern (GlobStar notation) to locate the new PDF files for comparison.
-
-    args = parser.parse_args()
-    # Parses the command-line arguments provided by the user.
-    # The results are stored in the "args" object.
-
-    main(good_pattern=args.good_pattern, new_pattern=args.new_pattern)
-    # Calls the 'main' function, passing in the parsed glob patterns as arguments.
-    # This initiates the program's functionality using the provided inputs.
+    main()
