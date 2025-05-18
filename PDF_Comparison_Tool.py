@@ -1,6 +1,7 @@
 # import statements
 import os
 import sys
+import argparse  # For command line function.
 import glob  # Importing glob for GlobStar Notation
 import fitz  # PyMuPDF (Works on latest version.)
 from PIL import Image, ImageChops, ImageStat
@@ -136,39 +137,51 @@ def process_pdf_pairs(good_pdfs, new_pdfs, output_folder, progress_bar):
         progress_bar.update(0.2)
 
 
-# Main Function
+def get_args():
+    """Parse command-line arguments for glob patterns."""
+    parser = argparse.ArgumentParser(description="PDF Comparison Tool v1.0.1")
+    parser.add_argument("good_pattern", type=str, help="Glob pattern for known good PDFs (e.g., '*_good.pdf')")
+    parser.add_argument("new_pattern", type=str, help="Glob pattern for new PDFs to compare (e.g., '*_new.pdf')")
+    args = parser.parse_args()
+    return args
+
+
 def main():
     global error_messages
 
-    # Initialize Tkinter and hide the root window
-    root = tk.Tk()
-    root.withdraw()  # Prevents the full GUI window from appearing
+    # Check if command-line patterns are provided
+    if len(sys.argv) > 1:
+        args = get_args()
+        folder_path = os.getcwd()  # Assume current directory
+        good_pattern = os.path.join(folder_path, args.good_pattern)
+        new_pattern = os.path.join(folder_path, args.new_pattern)
+    else:
+        # GUI fallback
+        root = tk.Tk()
+        root.withdraw()
+        folder_path = filedialog.askdirectory(title="Select Folder Containing PDFs")
 
-    # Ask user to select the folder containing PDFs
-    folder_path = filedialog.askdirectory(title="Select Folder Containing PDFs")
+        if not folder_path:
+            sys.stderr.write("Error: No folder selected. Exiting.\n")
+            sys.exit(1)
 
-    if not folder_path:
-        sys.stderr.write("Error: No folder selected. Exiting.\n")
-        sys.exit(1)
+        print("Enter the glob pattern for the known good PDFs (e.g., '*_good.pdf'):")
+        good_pattern = input("> ").strip()
+        print("Enter the glob pattern for the new PDFs to compare (e.g., '*_new.pdf'):")
+        new_pattern = input("> ").strip()
 
-    # Ask user for glob patterns dynamically
-    print("Enter the glob pattern for the known good PDFs (e.g., '*_good.pdf'):")
-    good_pattern = input("> ").strip()
+        if not good_pattern or not new_pattern:
+            sys.stderr.write("Error: Patterns cannot be empty.\n")
+            sys.exit(1)
 
-    print("Enter the glob pattern for the new PDFs to compare (e.g., '*_new.pdf'):")
-    new_pattern = input("> ").strip()
+        good_pattern = os.path.join(folder_path, good_pattern)
+        new_pattern = os.path.join(folder_path, new_pattern)
 
-    if not good_pattern or not new_pattern:
-        sys.stderr.write("Error: Patterns cannot be empty.\n")
-        sys.exit(1)
-
-    good_pattern = os.path.join(folder_path, good_pattern)
-    new_pattern = os.path.join(folder_path, new_pattern)
-
+    # Get file lists
     good_pdfs = sorted(glob.glob(good_pattern))
     new_pdfs = sorted(glob.glob(new_pattern))
 
-    # Ensure glob matching works dynamically for different naming conventions
+    # Ensure matching filenames
     good_ids = extract_ids(good_pdfs, good_pattern)
     new_ids = extract_ids(new_pdfs, new_pattern)
 
@@ -179,11 +192,11 @@ def main():
     output_folder = os.path.join(folder_path, "output_images")
     os.makedirs(output_folder, exist_ok=True)
 
-    total_steps = len(good_pdfs)  # Adjusted progress calculation
+    total_steps = len(good_pdfs)
     with tqdm(total=total_steps, desc="Processing PDFs", ncols=80, leave=True) as progress_bar:
         process_pdf_pairs(good_pdfs, new_pdfs, output_folder, progress_bar)
 
-    # Display errors at the end (if any)
+    # Display errors at the end
     if error_messages:
         tqdm.write("\nErrors occurred during processing:")
         for msg in error_messages:
@@ -193,6 +206,5 @@ def main():
         sys.exit(0)
 
 
-# Entry point for running the script without command-line arguments
 if __name__ == "__main__":
     main()
