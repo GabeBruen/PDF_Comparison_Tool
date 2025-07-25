@@ -1,4 +1,3 @@
-```markdown
 # PDF_Comparison_Tool
 
 PDF_Comparison_Tool is a Python utility for comparing PDFs. It converts the first page of each PDF into an image, adds a red border for visual clarity, computes the pixel-wise difference between a known good PDF and a new version, and generates a combined image showing the two originals alongside their diffs.
